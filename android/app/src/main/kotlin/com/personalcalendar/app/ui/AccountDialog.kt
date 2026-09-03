@@ -34,7 +34,8 @@ private val ERROR_MESSAGES = mapOf(
     "email_taken" to "이미 가입된 이메일입니다.",
     "weak_password" to "비밀번호는 8자 이상이어야 합니다.",
     "invalid_email" to "올바른 이메일 형식이 아닙니다.",
-    "network_error" to "서버에 연결할 수 없습니다. 서버 주소를 확인해주세요.",
+    "network_error" to "서버에 연결할 수 없습니다. 같은 네트워크에 있는지 확인해주세요.",
+    "me_failed" to "로그인 정보를 불러오지 못했습니다. 다시 시도해주세요.",
     "discord_login_failed" to "디스코드 로그인에 실패했습니다."
 )
 

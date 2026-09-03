@@ -165,7 +165,7 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
                 is ApiResult.Failure -> {
                     if (previousToken != null) authStore.saveSession(previousToken, _state.value.authUser ?: AuthUser("", null, null, null))
                     else authStore.clearSession()
-                    _state.update { it.copy(authError = "discord_login_failed") }
+                    _state.update { it.copy(authError = meResult.error) }
                 }
             }
         }
