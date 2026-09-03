@@ -1,0 +1,46 @@
+{
+  "name": "personal-calendar",
+  "version": "1.0.3",
+  "description": "개인 일정 관리 프로그램",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "release": "node scripts/release.js"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^32.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.local.personalcalendar",
+    "productName": "개인일정",
+    "files": [
+      "src/**/*",
+      "assets/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.png"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "anaf-4",
+      "repo": "personal-calendar",
+      "releaseType": "release"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "include": "installer/installer.nsh"
+    }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  }
+}

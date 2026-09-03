@@ -1,0 +1,22 @@
+# Node / Electron
+node_modules/
+dist/
+
+# Android / Gradle
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/*.iml
+android/app/*.iml
+android/captures/
+android/.cxx/
+
+# Signing secrets — never commit
+keystore-secret/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
