@@ -13,8 +13,8 @@ android {
         applicationId = "com.personalcalendar.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.0.8"
+        versionCode = 8
+        versionName = "1.0.9"
 
         buildConfigField("String", "GITHUB_REPO", "\"anaf-4/personal-calendar\"")
     }
