@@ -8,6 +8,15 @@ const router = express.Router();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// Discord requires the redirect_uri used in the token exchange to exactly match the one
+// used to start the authorization request. Since this server is reachable at more than one
+// address (LAN IP, public IP, ...), build it from whichever host the request actually came
+// in on rather than a single fixed value — each address just needs to also be registered as
+// a valid Redirect URI in the Discord app's OAuth2 settings.
+function discordRedirectUri(req) {
+  return `${req.protocol}://${req.get('host')}/api/auth/callback/discord`;
+}
+
 router.post('/register', async (req, res) => {
   const { email, password, displayName } = req.body || {};
   if (!email || !EMAIL_RE.test(email)) return res.status(400).json({ error: 'invalid_email' });
@@ -53,7 +62,7 @@ router.post('/login', async (req, res) => {
 router.get('/discord', (req, res) => {
   const params = new URLSearchParams({
     client_id: process.env.DISCORD_CLIENT_ID,
-    redirect_uri: process.env.DISCORD_REDIRECT_URI,
+    redirect_uri: discordRedirectUri(req),
     response_type: 'code',
     scope: 'identify email',
   });
@@ -74,7 +83,7 @@ router.get('/callback/discord', async (req, res) => {
         client_secret: process.env.DISCORD_CLIENT_SECRET,
         grant_type: 'authorization_code',
         code,
-        redirect_uri: process.env.DISCORD_REDIRECT_URI,
+        redirect_uri: discordRedirectUri(req),
       }),
     });
     if (!tokenResp.ok) throw new Error('token_exchange_failed');
