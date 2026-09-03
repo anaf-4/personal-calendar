@@ -10,7 +10,11 @@ const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
 const AUTH_FILE = path.join(app.getPath('userData'), 'auth.json');
 const ICON_PATH = path.join(__dirname, '..', 'assets', 'icon.png');
 const PROTOCOL_SCHEME = 'personalcalendar';
-const DEFAULT_SERVER_URL = 'http://192.168.45.250:4000';
+// Tried in order: LAN address first (faster, works at home), then the port-forwarded
+// public address (works away from home). Whichever answers /health first is cached
+// and reused for the rest of the session.
+const SERVER_CANDIDATES = ['http://192.168.45.250:4000', 'http://211.208.252.113:4000'];
+const DEFAULT_SERVER_URL = SERVER_CANDIDATES[0];
 
 const DEFAULT_CATEGORIES = [
   { id: 'work', name: '업무', color: '#5b8def' },
@@ -52,8 +56,31 @@ function saveAuth() {
   writeJson(AUTH_FILE, auth);
 }
 
+let resolvedServerUrl = null;
+
+async function resolveServerUrl() {
+  if (resolvedServerUrl) return resolvedServerUrl;
+  for (const base of SERVER_CANDIDATES) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 2500);
+      const resp = await fetch(`${base}/health`, { signal: controller.signal });
+      clearTimeout(timer);
+      if (resp.ok) {
+        resolvedServerUrl = base;
+        return base;
+      }
+    } catch (err) {
+      // unreachable on this address; try the next one
+    }
+  }
+  // Nothing answered — fall back to the first candidate so error messages are still meaningful.
+  return SERVER_CANDIDATES[0];
+}
+
 async function apiFetch(pathName, options = {}) {
-  const url = `${settings.serverUrl}${pathName}`;
+  const base = await resolveServerUrl();
+  const url = `${base}${pathName}`;
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
   if (auth.token) headers.Authorization = `Bearer ${auth.token}`;
   const resp = await fetch(url, { ...options, headers });
@@ -351,7 +378,7 @@ ipcMain.handle('categories:save', (_event, categories) => {
 // ---------- account / sync ----------
 
 ipcMain.handle('auth:status', () => {
-  return { loggedIn: Boolean(auth.token), user: auth.user, serverUrl: settings.serverUrl };
+  return { loggedIn: Boolean(auth.token), user: auth.user, serverUrl: resolvedServerUrl || settings.serverUrl };
 });
 
 ipcMain.handle('auth:register', async (_event, { email, password, displayName }) => {
@@ -382,8 +409,9 @@ ipcMain.handle('auth:logout', () => {
   return true;
 });
 
-ipcMain.handle('auth:discordLogin', () => {
-  shell.openExternal(`${settings.serverUrl}/api/auth/discord`);
+ipcMain.handle('auth:discordLogin', async () => {
+  const base = await resolveServerUrl();
+  shell.openExternal(`${base}/api/auth/discord`);
   return true;
 });
 

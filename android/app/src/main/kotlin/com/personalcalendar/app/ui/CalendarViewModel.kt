@@ -13,6 +13,7 @@ import com.personalcalendar.app.auth.ApiResult
 import com.personalcalendar.app.auth.AuthApi
 import com.personalcalendar.app.auth.AuthStore
 import com.personalcalendar.app.auth.AuthUser
+import com.personalcalendar.app.auth.ServerResolver
 import com.personalcalendar.app.data.SettingsStore
 import com.personalcalendar.app.data.expandOccurrences
 import com.personalcalendar.app.reminders.ReminderScheduler
@@ -69,7 +70,7 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
     private val settingsStore = SettingsStore(application)
     private val authStore = AuthStore(application)
     private val authApi = AuthApi(
-        serverUrlProvider = { authStore.currentServerUrl() },
+        serverUrlProvider = { ServerResolver.resolve() },
         tokenProvider = { authStore.currentToken() }
     )
 
@@ -82,7 +83,6 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
             val categories = repository.loadCategories()
             val pinHash = authStore.pinHash.first()
             val user = authStore.user.first()
-            val serverUrl = authStore.currentServerUrl()
 
             _state.update {
                 it.copy(
@@ -93,7 +93,7 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
                     hasPinSet = pinHash != null,
                     pinLocked = pinHash != null,
                     authUser = user,
-                    serverUrl = serverUrl
+                    serverUrl = ServerResolver.defaultServerUrl()
                 )
             }
             events.forEach { ReminderScheduler.scheduleForEvent(getApplication(), it) }
@@ -149,7 +149,7 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun discordLoginUrl(): String = "${_state.value.serverUrl}/api/auth/discord"
+    suspend fun discordLoginUrl(): String = "${ServerResolver.resolve()}/api/auth/discord"
 
     /** Called by MainActivity when the app is reopened via the personalcalendar://auth-callback deep link. */
     fun handleDeepLinkToken(token: String) {

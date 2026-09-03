@@ -25,12 +25,7 @@ class AuthStore(private val context: Context) {
     private val userDiscordKey = stringPreferencesKey("user_discord_username")
     private val pinHashKey = stringPreferencesKey("pin_hash")
 
-    // The server address is fixed by the app operator, not user-editable, so it always
-    // resolves to this constant rather than a value persisted from an older build.
-    val defaultServerUrl = "http://192.168.45.250:4000"
-
     val token: Flow<String?> = context.authDataStore.data.map { it[tokenKey] }
-    val serverUrl: Flow<String> = context.authDataStore.data.map { defaultServerUrl }
     val pinHash: Flow<String?> = context.authDataStore.data.map { it[pinHashKey] }
 
     val user: Flow<AuthUser?> = context.authDataStore.data.map { prefs ->
@@ -44,7 +39,6 @@ class AuthStore(private val context: Context) {
     }
 
     suspend fun currentToken(): String? = token.first()
-    suspend fun currentServerUrl(): String = serverUrl.first()
 
     suspend fun saveSession(newToken: String, authUser: AuthUser) {
         context.authDataStore.edit { prefs ->

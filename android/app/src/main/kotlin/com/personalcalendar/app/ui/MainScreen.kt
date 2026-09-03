@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 private val MONTH_FMT = DateTimeFormatter.ofPattern("yyyy년 M월", Locale.KOREAN)
 private val DAY_FMT = DateTimeFormatter.ofPattern("yyyy년 M월 d일", Locale.KOREAN)
@@ -47,6 +48,7 @@ fun MainScreen(viewModel: CalendarViewModel) {
     val state by viewModel.state.collectAsState()
     var showAccountDialog by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
 
     Scaffold(
         topBar = {
@@ -193,8 +195,11 @@ fun MainScreen(viewModel: CalendarViewModel) {
             onRegister = { email, password, name -> viewModel.register(email, password, name) },
             onLogout = { viewModel.logout() },
             onDiscordLogin = {
-                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(viewModel.discordLoginUrl()))
-                context.startActivity(intent)
+                coroutineScope.launch {
+                    val url = viewModel.discordLoginUrl()
+                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                    context.startActivity(intent)
+                }
             },
             onSetPin = { viewModel.setPin(it) },
             onClearPin = { viewModel.clearPin() }
