@@ -165,6 +165,14 @@ fun AccountDialog(
 
             Spacer(16.dp)
             TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("닫기") }
+            Spacer(8.dp)
+            Text(
+                "버전 ${com.personalcalendar.app.BuildConfig.VERSION_NAME}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
         }
     }
 }

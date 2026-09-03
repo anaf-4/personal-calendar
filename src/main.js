@@ -178,10 +178,15 @@ async function handleCloseRequest() {
 function createTray() {
   const trayIcon = nativeImage.createFromPath(ICON_PATH).resize({ width: 16, height: 16 });
   tray = new Tray(trayIcon);
-  tray.setToolTip('개인일정');
+  tray.setToolTip(`개인일정 v${app.getVersion()}`);
 
   const buildMenu = () =>
     Menu.buildFromTemplate([
+      {
+        label: `버전 ${app.getVersion()}`,
+        enabled: false,
+      },
+      { type: 'separator' },
       {
         label: '열기',
         click: () => {
