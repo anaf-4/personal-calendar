@@ -112,11 +112,6 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
 
     // ---------- account / sync ----------
 
-    fun setServerUrl(url: String) {
-        _state.update { it.copy(serverUrl = url) }
-        viewModelScope.launch { authStore.setServerUrl(url) }
-    }
-
     fun register(email: String, password: String, displayName: String?) {
         _state.update { it.copy(authBusy = true, authError = null) }
         viewModelScope.launch {
@@ -154,7 +149,7 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun discordLoginUrl(): String = "${_state.value.serverUrl}/auth/discord"
+    fun discordLoginUrl(): String = "${_state.value.serverUrl}/api/auth/discord"
 
     /** Called by MainActivity when the app is reopened via the personalcalendar://auth-callback deep link. */
     fun handleDeepLinkToken(token: String) {

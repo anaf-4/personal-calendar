@@ -13,7 +13,6 @@ contextBridge.exposeInMainWorld('api', {
   authLogin: (email, password) => ipcRenderer.invoke('auth:login', { email, password }),
   authLogout: () => ipcRenderer.invoke('auth:logout'),
   authDiscordLogin: () => ipcRenderer.invoke('auth:discordLogin'),
-  authSetServerUrl: (url) => ipcRenderer.invoke('auth:setServerUrl', url),
   onAuthChanged: (callback) => {
     const listener = (_event, user) => callback(user);
     ipcRenderer.on('auth:changed', listener);

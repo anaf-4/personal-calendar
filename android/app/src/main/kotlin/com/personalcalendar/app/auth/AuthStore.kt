@@ -23,13 +23,14 @@ class AuthStore(private val context: Context) {
     private val userEmailKey = stringPreferencesKey("user_email")
     private val userDisplayNameKey = stringPreferencesKey("user_display_name")
     private val userDiscordKey = stringPreferencesKey("user_discord_username")
-    private val serverUrlKey = stringPreferencesKey("server_url")
     private val pinHashKey = stringPreferencesKey("pin_hash")
 
-    val defaultServerUrl = "http://192.168.45.95:4000"
+    // The server address is fixed by the app operator, not user-editable, so it always
+    // resolves to this constant rather than a value persisted from an older build.
+    val defaultServerUrl = "http://192.168.45.250:4000"
 
     val token: Flow<String?> = context.authDataStore.data.map { it[tokenKey] }
-    val serverUrl: Flow<String> = context.authDataStore.data.map { it[serverUrlKey] ?: defaultServerUrl }
+    val serverUrl: Flow<String> = context.authDataStore.data.map { defaultServerUrl }
     val pinHash: Flow<String?> = context.authDataStore.data.map { it[pinHashKey] }
 
     val user: Flow<AuthUser?> = context.authDataStore.data.map { prefs ->
@@ -63,10 +64,6 @@ class AuthStore(private val context: Context) {
             prefs.remove(userDisplayNameKey)
             prefs.remove(userDiscordKey)
         }
-    }
-
-    suspend fun setServerUrl(url: String) {
-        context.authDataStore.edit { it[serverUrlKey] = url }
     }
 
     suspend fun setPinHash(hash: String?) {

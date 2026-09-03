@@ -10,7 +10,7 @@ const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
 const AUTH_FILE = path.join(app.getPath('userData'), 'auth.json');
 const ICON_PATH = path.join(__dirname, '..', 'assets', 'icon.png');
 const PROTOCOL_SCHEME = 'personalcalendar';
-const DEFAULT_SERVER_URL = 'http://192.168.45.95:4000';
+const DEFAULT_SERVER_URL = 'http://192.168.45.250:4000';
 
 const DEFAULT_CATEGORIES = [
   { id: 'work', name: '업무', color: '#5b8def' },
@@ -39,6 +39,9 @@ let mainWindow = null;
 let tray = null;
 let isQuitting = false;
 let settings = { ...DEFAULT_SETTINGS, ...readJson(SETTINGS_FILE, DEFAULT_SETTINGS) };
+// The server address is fixed by the app operator, not user-editable — always use the
+// current constant rather than a value persisted from an older build.
+settings.serverUrl = DEFAULT_SERVER_URL;
 let auth = readJson(AUTH_FILE, DEFAULT_AUTH);
 
 function saveSettings() {
@@ -68,7 +71,7 @@ function hashPin(pin) {
 }
 
 async function fetchAndStoreProfile() {
-  const { ok, body } = await apiFetch('/auth/me');
+  const { ok, body } = await apiFetch('/api/auth/me');
   if (ok && body && body.user) {
     auth.user = body.user;
     saveAuth();
@@ -347,7 +350,7 @@ ipcMain.handle('auth:status', () => {
 });
 
 ipcMain.handle('auth:register', async (_event, { email, password, displayName }) => {
-  const { ok, body } = await apiFetch('/auth/register', {
+  const { ok, body } = await apiFetch('/api/auth/register', {
     method: 'POST',
     body: JSON.stringify({ email, password, displayName }),
   });
@@ -358,7 +361,7 @@ ipcMain.handle('auth:register', async (_event, { email, password, displayName })
 });
 
 ipcMain.handle('auth:login', async (_event, { email, password }) => {
-  const { ok, body } = await apiFetch('/auth/login', {
+  const { ok, body } = await apiFetch('/api/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
   });
@@ -375,13 +378,7 @@ ipcMain.handle('auth:logout', () => {
 });
 
 ipcMain.handle('auth:discordLogin', () => {
-  shell.openExternal(`${settings.serverUrl}/auth/discord`);
-  return true;
-});
-
-ipcMain.handle('auth:setServerUrl', (_event, url) => {
-  settings.serverUrl = url;
-  saveSettings();
+  shell.openExternal(`${settings.serverUrl}/api/auth/discord`);
   return true;
 });
 

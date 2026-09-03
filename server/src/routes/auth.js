@@ -60,7 +60,7 @@ router.get('/discord', (req, res) => {
   res.redirect(`https://discord.com/api/oauth2/authorize?${params.toString()}`);
 });
 
-router.get('/discord/callback', async (req, res) => {
+router.get('/callback/discord', async (req, res) => {
   const scheme = process.env.APP_CALLBACK_SCHEME || 'personalcalendar';
   const code = req.query.code;
   if (!code) return res.redirect(`${scheme}://auth-callback?error=missing_code`);

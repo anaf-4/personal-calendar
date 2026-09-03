@@ -93,7 +93,7 @@ class AuthApi(private val serverUrlProvider: suspend () -> String, private val t
     suspend fun register(email: String, password: String, displayName: String?): ApiResult<Pair<String, AuthUser>> {
         val body = json.encodeToString(RegisterRequest(email, password, displayName))
         return runCatching {
-            val (code, text) = request("/auth/register", "POST", body)
+            val (code, text) = request("/api/auth/register", "POST", body)
             val parsed = json.decodeFromString<AuthResponseDto>(text)
             if (code in 200..299 && parsed.token != null && parsed.user != null) {
                 ApiResult.Success(parsed.token to parsed.user.toAuthUser())
@@ -106,7 +106,7 @@ class AuthApi(private val serverUrlProvider: suspend () -> String, private val t
     suspend fun login(email: String, password: String): ApiResult<Pair<String, AuthUser>> {
         val body = json.encodeToString(LoginRequest(email, password))
         return runCatching {
-            val (code, text) = request("/auth/login", "POST", body)
+            val (code, text) = request("/api/auth/login", "POST", body)
             val parsed = json.decodeFromString<AuthResponseDto>(text)
             if (code in 200..299 && parsed.token != null && parsed.user != null) {
                 ApiResult.Success(parsed.token to parsed.user.toAuthUser())
@@ -118,7 +118,7 @@ class AuthApi(private val serverUrlProvider: suspend () -> String, private val t
 
     suspend fun me(): ApiResult<AuthUser> {
         return runCatching {
-            val (code, text) = request("/auth/me", "GET", withAuth = true)
+            val (code, text) = request("/api/auth/me", "GET", withAuth = true)
             if (code in 200..299) {
                 ApiResult.Success(json.decodeFromString<MeResponseDto>(text).user.toAuthUser())
             } else {
