@@ -45,7 +45,7 @@ jobs:
       - name: Build signed release APK
         working-directory: android
         env:
-          RELEASE_KEYSTORE_PATH: release.keystore
+          RELEASE_KEYSTORE_PATH: ${{ github.workspace }}/android/release.keystore
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
