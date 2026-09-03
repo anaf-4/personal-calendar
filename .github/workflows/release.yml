@@ -53,9 +53,9 @@ jobs:
           ./gradlew assembleRelease
 
       - name: Rename APK
-        run: cp android/app/build/outputs/apk/release/app-release.apk 개인일정.apk
+        run: cp android/app/build/outputs/apk/release/app-release.apk PersonalCalendar.apk
 
       - name: Upload APK to release
         uses: softprops/action-gh-release@v2
         with:
-          files: 개인일정.apk
+          files: PersonalCalendar.apk
