@@ -840,6 +840,215 @@ html, body {
   height: 20px;
 }
 
+/* Account modal */
+.account-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  background: var(--panel-2);
+  border-radius: 8px;
+  padding: 3px;
+}
+
+.account-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  padding: 7px 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.account-tab.active {
+  background: var(--accent);
+  color: white;
+}
+
+.account-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.account-form label {
+  font-size: 12px;
+  color: var(--text-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.account-form input {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: 7px;
+  font-size: 13px;
+}
+
+.account-form input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.full-width {
+  width: 100%;
+}
+
+.error-text {
+  color: var(--danger);
+  font-size: 12px;
+  margin: 0;
+}
+
+.account-divider {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 11px;
+  margin: 14px 0;
+  position: relative;
+}
+
+.account-divider::before,
+.account-divider::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 40%;
+  height: 1px;
+  background: var(--border);
+}
+
+.account-divider::before { left: 0; }
+.account-divider::after { right: 0; }
+
+.discord-btn {
+  background: #5865f2;
+  color: white;
+  border: none;
+  padding: 9px 0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.discord-btn:hover {
+  filter: brightness(1.08);
+}
+
+.server-url-details {
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.server-url-details summary {
+  cursor: pointer;
+}
+
+.server-url-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.server-url-row input {
+  flex: 1;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 7px 9px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+.account-welcome {
+  font-size: 14px;
+  margin: 0 0 4px 0;
+}
+
+#accountLoggedInView {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pin-set-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.pin-set-row input {
+  flex: 1;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: 7px;
+  font-size: 13px;
+  letter-spacing: 2px;
+}
+
+/* PIN lock screen */
+.pin-lock-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.pin-lock-box {
+  text-align: center;
+  width: 280px;
+}
+
+.pin-lock-icon {
+  font-size: 40px;
+  margin-bottom: 8px;
+}
+
+.pin-lock-box h2 {
+  font-size: 17px;
+  margin: 0 0 18px 0;
+}
+
+.pin-dots {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.pin-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.pin-dot.filled {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.pin-lock-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 1px;
+  height: 1px;
+}
+
 .hidden {
   display: none !important;
 }

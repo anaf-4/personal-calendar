@@ -23,6 +23,7 @@
         </div>
       </div>
       <div class="topbar-right">
+        <button id="accountBtn" class="icon-btn" title="계정">👤</button>
         <button id="themeToggleBtn" class="icon-btn" title="테마 전환">🌙</button>
         <button id="addEventBtn" class="primary-btn">+ 새 일정</button>
       </div>
@@ -161,6 +162,93 @@
           <button type="button" id="closeCategoryModalBtn" class="primary-btn">닫기</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div id="accountModalOverlay" class="modal-overlay hidden">
+    <div class="modal">
+      <h3>계정</h3>
+
+      <div id="accountLoggedOutView">
+        <div class="account-tabs" id="accountTabs">
+          <button type="button" class="account-tab active" data-tab="login">로그인</button>
+          <button type="button" class="account-tab" data-tab="register">회원가입</button>
+        </div>
+
+        <form id="loginForm" class="account-form">
+          <label>
+            이메일
+            <input type="email" id="loginEmail" required />
+          </label>
+          <label>
+            비밀번호
+            <input type="password" id="loginPassword" required />
+          </label>
+          <p id="loginError" class="error-text hidden"></p>
+          <button type="submit" class="primary-btn full-width">로그인</button>
+        </form>
+
+        <form id="registerForm" class="account-form hidden">
+          <label>
+            이름 (선택)
+            <input type="text" id="registerName" maxlength="30" />
+          </label>
+          <label>
+            이메일
+            <input type="email" id="registerEmail" required />
+          </label>
+          <label>
+            비밀번호 (8자 이상)
+            <input type="password" id="registerPassword" required minlength="8" />
+          </label>
+          <p id="registerError" class="error-text hidden"></p>
+          <button type="submit" class="primary-btn full-width">회원가입</button>
+        </form>
+
+        <div class="account-divider">또는</div>
+        <button type="button" id="discordLoginBtn" class="discord-btn full-width">Discord로 로그인</button>
+      </div>
+
+      <div id="accountLoggedInView" class="hidden">
+        <p class="account-welcome">
+          <strong id="accountUserLabel"></strong>님으로 로그인됨
+        </p>
+        <p class="hint-text">일정과 카테고리가 이 계정에 자동으로 동기화됩니다.</p>
+        <button type="button" id="syncNowBtn" class="secondary-btn full-width">지금 동기화</button>
+        <button type="button" id="logoutBtn" class="danger-btn full-width">로그아웃</button>
+      </div>
+
+      <div class="account-divider">화면 잠금</div>
+      <div id="pinSection">
+        <p class="hint-text" id="pinStatusText">설정된 PIN이 없습니다.</p>
+        <div class="pin-set-row">
+          <input type="password" id="pinInput" inputmode="numeric" maxlength="6" placeholder="4~6자리 숫자" />
+          <button type="button" id="setPinBtn" class="secondary-btn">PIN 설정</button>
+          <button type="button" id="clearPinBtn" class="danger-btn hidden">PIN 해제</button>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <div></div>
+        <div class="modal-actions-right">
+          <button type="button" id="closeAccountModalBtn" class="primary-btn">닫기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="pinLockOverlay" class="pin-lock-overlay hidden">
+    <div class="pin-lock-box">
+      <div class="pin-lock-icon">🔒</div>
+      <h2>PIN을 입력하세요</h2>
+      <div class="pin-dots" id="pinDots">
+        <span class="pin-dot"></span>
+        <span class="pin-dot"></span>
+        <span class="pin-dot"></span>
+        <span class="pin-dot"></span>
+      </div>
+      <p id="pinLockError" class="error-text hidden">PIN이 올바르지 않습니다.</p>
+      <input type="password" id="pinLockInput" inputmode="numeric" maxlength="6" class="pin-lock-input" autofocus />
     </div>
   </div>
 

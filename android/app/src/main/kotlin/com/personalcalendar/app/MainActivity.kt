@@ -14,13 +14,13 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import com.personalcalendar.app.reminders.ReminderScheduler
 import com.personalcalendar.app.ui.CalendarViewModel
 import com.personalcalendar.app.ui.MainScreen
+import com.personalcalendar.app.ui.PinLockScreen
 import com.personalcalendar.app.ui.theme.PersonalCalendarTheme
 
 class MainActivity : ComponentActivity() {
@@ -45,13 +45,33 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        handleIntent(intent)
+
         setContent {
             val state by viewModel.state.collectAsState()
             PersonalCalendarTheme(themeMode = state.theme) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    MainScreen(viewModel = viewModel)
+                    if (state.pinLocked) {
+                        PinLockScreen(onCheckPin = { pin -> viewModel.checkPin(pin) })
+                    } else {
+                        MainScreen(viewModel = viewModel)
+                    }
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        val uri = intent?.data ?: return
+        if (uri.scheme != "personalcalendar") return
+        val token = uri.getQueryParameter("token")
+        if (token != null) {
+            viewModel.handleDeepLinkToken(token)
         }
     }
 }

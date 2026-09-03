@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -28,6 +29,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import java.time.LocalDate
@@ -41,6 +45,8 @@ private val DAY_FMT = DateTimeFormatter.ofPattern("yyyy년 M월 d일", Locale.KO
 @Composable
 fun MainScreen(viewModel: CalendarViewModel) {
     val state by viewModel.state.collectAsState()
+    var showAccountDialog by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     Scaffold(
         topBar = {
@@ -57,6 +63,9 @@ fun MainScreen(viewModel: CalendarViewModel) {
                             Icon(Icons.Filled.ChevronRight, contentDescription = "다음")
                         }
                         TextButton(onClick = { viewModel.today() }) { Text("오늘") }
+                        IconButton(onClick = { showAccountDialog = true }) {
+                            Icon(Icons.Filled.Person, contentDescription = "계정")
+                        }
                         IconButton(onClick = {
                             viewModel.setTheme(if (state.theme == "dark") "light" else "dark")
                         }) {
@@ -170,6 +179,25 @@ fun MainScreen(viewModel: CalendarViewModel) {
             onUpdate = { id, name, color -> viewModel.updateCategory(id, name, color) },
             onDelete = { id -> viewModel.deleteCategory(id) },
             onClose = { viewModel.closeCategoryManager() }
+        )
+    }
+
+    if (showAccountDialog) {
+        AccountDialog(
+            authUser = state.authUser,
+            authBusy = state.authBusy,
+            authError = state.authError,
+            hasPinSet = state.hasPinSet,
+            onDismiss = { showAccountDialog = false },
+            onLogin = { email, password -> viewModel.login(email, password) },
+            onRegister = { email, password, name -> viewModel.register(email, password, name) },
+            onLogout = { viewModel.logout() },
+            onDiscordLogin = {
+                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(viewModel.discordLoginUrl()))
+                context.startActivity(intent)
+            },
+            onSetPin = { viewModel.setPin(it) },
+            onClearPin = { viewModel.clearPin() }
         )
     }
 }

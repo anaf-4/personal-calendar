@@ -1,12 +1,16 @@
-const { app, BrowserWindow, ipcMain, Notification, Tray, Menu, dialog, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, Notification, Tray, Menu, dialog, nativeImage, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
+const crypto = require('crypto');
 
 const EVENTS_FILE = path.join(app.getPath('userData'), 'events.json');
 const CATEGORIES_FILE = path.join(app.getPath('userData'), 'categories.json');
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
+const AUTH_FILE = path.join(app.getPath('userData'), 'auth.json');
 const ICON_PATH = path.join(__dirname, '..', 'assets', 'icon.png');
+const PROTOCOL_SCHEME = 'personalcalendar';
+const DEFAULT_SERVER_URL = 'http://192.168.45.95:4000';
 
 const DEFAULT_CATEGORIES = [
   { id: 'work', name: '업무', color: '#5b8def' },
@@ -15,7 +19,8 @@ const DEFAULT_CATEGORIES = [
   { id: 'etc', name: '기타', color: '#9b6ce0' },
 ];
 
-const DEFAULT_SETTINGS = { closeBehavior: null }; // null = ask every time, 'tray' | 'quit'
+const DEFAULT_SETTINGS = { closeBehavior: null, serverUrl: DEFAULT_SERVER_URL, pinHash: null }; // closeBehavior: null = ask every time, 'tray' | 'quit'
+const DEFAULT_AUTH = { token: null, user: null };
 
 function readJson(file, fallback) {
   try {
@@ -33,7 +38,68 @@ function writeJson(file, data) {
 let mainWindow = null;
 let tray = null;
 let isQuitting = false;
-let settings = readJson(SETTINGS_FILE, DEFAULT_SETTINGS);
+let settings = { ...DEFAULT_SETTINGS, ...readJson(SETTINGS_FILE, DEFAULT_SETTINGS) };
+let auth = readJson(AUTH_FILE, DEFAULT_AUTH);
+
+function saveSettings() {
+  writeJson(SETTINGS_FILE, settings);
+}
+
+function saveAuth() {
+  writeJson(AUTH_FILE, auth);
+}
+
+async function apiFetch(pathName, options = {}) {
+  const url = `${settings.serverUrl}${pathName}`;
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  if (auth.token) headers.Authorization = `Bearer ${auth.token}`;
+  const resp = await fetch(url, { ...options, headers });
+  let body = null;
+  try {
+    body = await resp.json();
+  } catch (err) {
+    body = null;
+  }
+  return { ok: resp.ok, status: resp.status, body };
+}
+
+function hashPin(pin) {
+  return crypto.createHash('sha256').update(`pc-pin-salt:${pin}`).digest('hex');
+}
+
+async function fetchAndStoreProfile() {
+  const { ok, body } = await apiFetch('/auth/me');
+  if (ok && body && body.user) {
+    auth.user = body.user;
+    saveAuth();
+  }
+  return ok;
+}
+
+function handleAuthCallbackUrl(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch (err) {
+    return;
+  }
+  const token = parsed.searchParams.get('token');
+  const error = parsed.searchParams.get('error');
+
+  if (token) {
+    auth.token = token;
+    saveAuth();
+    fetchAndStoreProfile().then(() => {
+      if (mainWindow) mainWindow.webContents.send('auth:changed', auth.user);
+    });
+  } else if (mainWindow) {
+    dialog.showMessageBox(mainWindow, {
+      type: 'error',
+      message: '디스코드 로그인에 실패했습니다.',
+      detail: error || '',
+    });
+  }
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -161,6 +227,29 @@ if (process.platform === 'win32' && app.isPackaged) {
   app.setAppUserModelId('com.local.personalcalendar');
 }
 
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient(PROTOCOL_SCHEME, process.execPath, [path.resolve(process.argv[1])]);
+  }
+} else {
+  app.setAsDefaultProtocolClient(PROTOCOL_SCHEME);
+}
+
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (_event, argv) => {
+    const url = argv.find((a) => a.startsWith(`${PROTOCOL_SCHEME}://`));
+    if (url) handleAuthCallbackUrl(url);
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
+
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 
@@ -216,6 +305,9 @@ app.whenReady().then(() => {
   createTray();
   checkForUpdates(false);
 
+  const initialUrl = process.argv.find((a) => a.startsWith(`${PROTOCOL_SCHEME}://`));
+  if (initialUrl) handleAuthCallbackUrl(initialUrl);
+
   app.on('activate', () => {
     if (!mainWindow) createWindow();
     else mainWindow.show();
@@ -246,6 +338,90 @@ ipcMain.handle('categories:load', () => {
 ipcMain.handle('categories:save', (_event, categories) => {
   writeJson(CATEGORIES_FILE, categories);
   return true;
+});
+
+// ---------- account / sync ----------
+
+ipcMain.handle('auth:status', () => {
+  return { loggedIn: Boolean(auth.token), user: auth.user, serverUrl: settings.serverUrl };
+});
+
+ipcMain.handle('auth:register', async (_event, { email, password, displayName }) => {
+  const { ok, body } = await apiFetch('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ email, password, displayName }),
+  });
+  if (!ok) return { ok: false, error: (body && body.error) || 'unknown_error' };
+  auth = { token: body.token, user: body.user };
+  saveAuth();
+  return { ok: true, user: auth.user };
+});
+
+ipcMain.handle('auth:login', async (_event, { email, password }) => {
+  const { ok, body } = await apiFetch('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+  if (!ok) return { ok: false, error: (body && body.error) || 'unknown_error' };
+  auth = { token: body.token, user: body.user };
+  saveAuth();
+  return { ok: true, user: auth.user };
+});
+
+ipcMain.handle('auth:logout', () => {
+  auth = { ...DEFAULT_AUTH };
+  saveAuth();
+  return true;
+});
+
+ipcMain.handle('auth:discordLogin', () => {
+  shell.openExternal(`${settings.serverUrl}/auth/discord`);
+  return true;
+});
+
+ipcMain.handle('auth:setServerUrl', (_event, url) => {
+  settings.serverUrl = url;
+  saveSettings();
+  return true;
+});
+
+ipcMain.handle('sync:pull', async () => {
+  if (!auth.token) return { ok: false, error: 'not_logged_in' };
+  const { ok, body } = await apiFetch('/sync');
+  if (!ok) return { ok: false, error: (body && body.error) || 'sync_failed' };
+  return { ok: true, events: body.events, categories: body.categories };
+});
+
+ipcMain.handle('sync:push', async (_event, { events, categories }) => {
+  if (!auth.token) return { ok: false, error: 'not_logged_in' };
+  const { ok, body } = await apiFetch('/sync', {
+    method: 'PUT',
+    body: JSON.stringify({ events, categories }),
+  });
+  if (!ok) return { ok: false, error: (body && body.error) || 'sync_failed' };
+  return { ok: true };
+});
+
+// ---------- PIN lock ----------
+
+ipcMain.handle('pin:status', () => {
+  return { hasPin: Boolean(settings.pinHash) };
+});
+
+ipcMain.handle('pin:set', (_event, pin) => {
+  settings.pinHash = hashPin(pin);
+  saveSettings();
+  return true;
+});
+
+ipcMain.handle('pin:clear', () => {
+  settings.pinHash = null;
+  saveSettings();
+  return true;
+});
+
+ipcMain.handle('pin:verify', (_event, pin) => {
+  return Boolean(settings.pinHash) && settings.pinHash === hashPin(pin);
 });
 
 ipcMain.handle('notify:show', (_event, { title, body }) => {

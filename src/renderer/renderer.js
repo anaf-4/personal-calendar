@@ -41,6 +41,35 @@
   const addCategoryBtn = document.getElementById('addCategoryBtn');
   const closeCategoryModalBtn = document.getElementById('closeCategoryModalBtn');
 
+  const accountBtn = document.getElementById('accountBtn');
+  const accountModalOverlay = document.getElementById('accountModalOverlay');
+  const closeAccountModalBtn = document.getElementById('closeAccountModalBtn');
+  const accountTabs = document.getElementById('accountTabs');
+  const loginForm = document.getElementById('loginForm');
+  const registerForm = document.getElementById('registerForm');
+  const loginEmail = document.getElementById('loginEmail');
+  const loginPassword = document.getElementById('loginPassword');
+  const loginError = document.getElementById('loginError');
+  const registerName = document.getElementById('registerName');
+  const registerEmail = document.getElementById('registerEmail');
+  const registerPassword = document.getElementById('registerPassword');
+  const registerError = document.getElementById('registerError');
+  const discordLoginBtn = document.getElementById('discordLoginBtn');
+  const accountLoggedOutView = document.getElementById('accountLoggedOutView');
+  const accountLoggedInView = document.getElementById('accountLoggedInView');
+  const accountUserLabel = document.getElementById('accountUserLabel');
+  const syncNowBtn = document.getElementById('syncNowBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const pinStatusText = document.getElementById('pinStatusText');
+  const pinInput = document.getElementById('pinInput');
+  const setPinBtn = document.getElementById('setPinBtn');
+  const clearPinBtn = document.getElementById('clearPinBtn');
+
+  const pinLockOverlay = document.getElementById('pinLockOverlay');
+  const pinDots = document.getElementById('pinDots');
+  const pinLockError = document.getElementById('pinLockError');
+  const pinLockInput = document.getElementById('pinLockInput');
+
   const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
   const HOUR_HEIGHT = 48;
 
@@ -111,6 +140,8 @@
   // ---------- init ----------
   async function init() {
     applyStoredTheme();
+    await gateWithPinLock();
+
     categories = await window.api.loadCategories();
     events = await window.api.loadEvents();
     activeCategoryIds = new Set(categories.map((c) => c.id));
@@ -118,6 +149,38 @@
     render();
     startNowLineTimer();
     startReminderScheduler();
+
+    const status = await window.api.authStatus();
+    if (status.loggedIn) await pullFromServer();
+
+    window.api.onAuthChanged(async () => {
+      await pullFromServer();
+      renderAccountView();
+    });
+  }
+
+  async function pullFromServer() {
+    try {
+      const result = await window.api.syncPull();
+      if (!result.ok) return;
+
+      const serverHasData = (result.events && result.events.length) || (result.categories && result.categories.length);
+      if (!serverHasData && (events.length || categories.length)) {
+        // Fresh account with nothing saved yet — seed it from local data instead of wiping local with empty server data.
+        await window.api.syncPush(events, categories);
+        return;
+      }
+
+      events = result.events || [];
+      categories = result.categories && result.categories.length ? result.categories : categories;
+      activeCategoryIds = new Set(categories.map((c) => c.id));
+      await window.api.saveEvents(events);
+      await window.api.saveCategories(categories);
+      populateCategorySelect();
+      render();
+    } catch (err) {
+      /* offline or server unreachable; keep local data */
+    }
   }
 
   function applyStoredTheme() {
@@ -291,9 +354,21 @@
 
   async function persistCategories() {
     await window.api.saveCategories(categories);
+    syncToServerIfLoggedIn();
   }
   async function persistEvents() {
     await window.api.saveEvents(events);
+    syncToServerIfLoggedIn();
+  }
+
+  async function syncToServerIfLoggedIn() {
+    try {
+      const status = await window.api.authStatus();
+      if (!status.loggedIn) return;
+      await window.api.syncPush(events, categories);
+    } catch (err) {
+      /* best-effort background sync; ignore failures */
+    }
   }
 
   // ---------- recurrence expansion ----------
@@ -910,6 +985,159 @@
     container.appendChild(toast);
     setTimeout(() => toast.remove(), 12000);
   }
+
+  // ---------- PIN lock ----------
+  function gateWithPinLock() {
+    return new Promise(async (resolve) => {
+      const status = await window.api.pinStatus();
+      if (!status.hasPin) {
+        resolve();
+        return;
+      }
+
+      pinLockOverlay.classList.remove('hidden');
+      pinLockInput.value = '';
+      pinLockError.classList.add('hidden');
+      updatePinDots('');
+      pinLockInput.focus();
+
+      const onInput = async () => {
+        const value = pinLockInput.value.replace(/\D/g, '').slice(0, 6);
+        pinLockInput.value = value;
+        updatePinDots(value);
+
+        if (value.length < 4) return;
+
+        const ok = await window.api.pinVerify(value);
+        if (ok) {
+          pinLockInput.removeEventListener('input', onInput);
+          pinLockOverlay.classList.add('hidden');
+          resolve();
+        } else if (value.length === 6) {
+          pinLockError.classList.remove('hidden');
+          pinLockInput.value = '';
+          updatePinDots('');
+        }
+      };
+      pinLockInput.addEventListener('input', onInput);
+    });
+  }
+
+  function updatePinDots(value) {
+    [...pinDots.children].forEach((dot, i) => {
+      dot.classList.toggle('filled', i < value.length);
+    });
+  }
+
+  pinLockOverlay.addEventListener('click', (ev) => {
+    if (ev.target === pinLockOverlay) pinLockInput.focus();
+  });
+
+  // ---------- account modal ----------
+  accountBtn.addEventListener('click', async () => {
+    await renderAccountView();
+    accountModalOverlay.classList.remove('hidden');
+  });
+  closeAccountModalBtn.addEventListener('click', () => accountModalOverlay.classList.add('hidden'));
+  accountModalOverlay.addEventListener('click', (ev) => {
+    if (ev.target === accountModalOverlay) accountModalOverlay.classList.add('hidden');
+  });
+
+  async function renderAccountView() {
+    const status = await window.api.authStatus();
+    if (status.loggedIn && status.user) {
+      accountLoggedOutView.classList.add('hidden');
+      accountLoggedInView.classList.remove('hidden');
+      accountUserLabel.textContent =
+        status.user.displayName || status.user.email || status.user.discord_username || '사용자';
+    } else {
+      accountLoggedOutView.classList.remove('hidden');
+      accountLoggedInView.classList.add('hidden');
+    }
+
+    const pinStatus = await window.api.pinStatus();
+    pinStatusText.textContent = pinStatus.hasPin
+      ? 'PIN이 설정되어 있습니다.'
+      : '설정된 PIN이 없습니다.';
+    clearPinBtn.classList.toggle('hidden', !pinStatus.hasPin);
+    pinInput.value = '';
+  }
+
+  accountTabs.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('.account-tab');
+    if (!btn) return;
+    [...accountTabs.children].forEach((b) => b.classList.toggle('active', b === btn));
+    const isLogin = btn.dataset.tab === 'login';
+    loginForm.classList.toggle('hidden', !isLogin);
+    registerForm.classList.toggle('hidden', isLogin);
+  });
+
+  loginForm.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    loginError.classList.add('hidden');
+    const result = await window.api.authLogin(loginEmail.value.trim(), loginPassword.value);
+    if (!result.ok) {
+      loginError.textContent = result.error === 'invalid_credentials' ? '이메일 또는 비밀번호가 올바르지 않습니다.' : '로그인에 실패했습니다.';
+      loginError.classList.remove('hidden');
+      return;
+    }
+    loginForm.reset();
+    await pullFromServer();
+    await renderAccountView();
+  });
+
+  registerForm.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    registerError.classList.add('hidden');
+    const result = await window.api.authRegister(
+      registerEmail.value.trim(),
+      registerPassword.value,
+      registerName.value.trim()
+    );
+    if (!result.ok) {
+      const messages = {
+        email_taken: '이미 가입된 이메일입니다.',
+        weak_password: '비밀번호는 8자 이상이어야 합니다.',
+        invalid_email: '올바른 이메일 형식이 아닙니다.',
+      };
+      registerError.textContent = messages[result.error] || '회원가입에 실패했습니다.';
+      registerError.classList.remove('hidden');
+      return;
+    }
+    registerForm.reset();
+    await syncToServerIfLoggedIn();
+    await renderAccountView();
+  });
+
+  discordLoginBtn.addEventListener('click', () => {
+    window.api.authDiscordLogin();
+  });
+
+  syncNowBtn.addEventListener('click', async () => {
+    await syncToServerIfLoggedIn();
+    await pullFromServer();
+  });
+
+  logoutBtn.addEventListener('click', async () => {
+    await window.api.authLogout();
+    await renderAccountView();
+  });
+
+  setPinBtn.addEventListener('click', async () => {
+    const value = pinInput.value.replace(/\D/g, '');
+    if (value.length < 4 || value.length > 6) {
+      alert('PIN은 4~6자리 숫자로 설정해주세요.');
+      return;
+    }
+    await window.api.pinSet(value);
+    await renderAccountView();
+  });
+
+  clearPinBtn.addEventListener('click', async () => {
+    if (!confirm('PIN을 해제하시겠습니까?')) return;
+    await window.api.pinClear();
+    await renderAccountView();
+  });
 
   init();
 })();

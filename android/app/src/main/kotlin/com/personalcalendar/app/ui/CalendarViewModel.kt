@@ -9,17 +9,23 @@ import com.personalcalendar.app.data.EventOccurrence
 import com.personalcalendar.app.data.Recurrence
 import com.personalcalendar.app.data.Repository
 import com.personalcalendar.app.BuildConfig
+import com.personalcalendar.app.auth.ApiResult
+import com.personalcalendar.app.auth.AuthApi
+import com.personalcalendar.app.auth.AuthStore
+import com.personalcalendar.app.auth.AuthUser
 import com.personalcalendar.app.data.SettingsStore
 import com.personalcalendar.app.data.expandOccurrences
 import com.personalcalendar.app.reminders.ReminderScheduler
 import com.personalcalendar.app.update.GithubRelease
 import com.personalcalendar.app.update.UpdateChecker
 import com.personalcalendar.app.update.UpdateInstaller
+import java.security.MessageDigest
 import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -40,7 +46,13 @@ data class CalendarUiState(
     val prefillStart: String? = null,
     val showCategoryManager: Boolean = false,
     val availableUpdate: GithubRelease? = null,
-    val updateDownloading: Boolean = false
+    val updateDownloading: Boolean = false,
+    val authUser: AuthUser? = null,
+    val serverUrl: String = "",
+    val authBusy: Boolean = false,
+    val authError: String? = null,
+    val hasPinSet: Boolean = false,
+    val pinLocked: Boolean = false
 ) {
     fun categoryById(id: String): EventCategory =
         categories.find { it.id == id } ?: EventCategory("unknown", "기타", 0xFF9A9CA6)
@@ -55,6 +67,11 @@ data class CalendarUiState(
 class CalendarViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = Repository(application)
     private val settingsStore = SettingsStore(application)
+    private val authStore = AuthStore(application)
+    private val authApi = AuthApi(
+        serverUrlProvider = { authStore.currentServerUrl() },
+        tokenProvider = { authStore.currentToken() }
+    )
 
     private val _state = MutableStateFlow(CalendarUiState())
     val state: StateFlow<CalendarUiState> = _state.asStateFlow()
@@ -63,15 +80,26 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             val events = repository.loadEvents()
             val categories = repository.loadCategories()
+            val pinHash = authStore.pinHash.first()
+            val user = authStore.user.first()
+            val serverUrl = authStore.currentServerUrl()
+
             _state.update {
                 it.copy(
                     loading = false,
                     events = events,
                     categories = categories,
-                    activeCategoryIds = categories.map { c -> c.id }.toSet()
+                    activeCategoryIds = categories.map { c -> c.id }.toSet(),
+                    hasPinSet = pinHash != null,
+                    pinLocked = pinHash != null,
+                    authUser = user,
+                    serverUrl = serverUrl
                 )
             }
             events.forEach { ReminderScheduler.scheduleForEvent(getApplication(), it) }
+
+            if (user != null) pullFromServer()
+
             launch {
                 val release = UpdateChecker.checkLatest(BuildConfig.VERSION_NAME)
                 if (release?.apkAsset != null) {
@@ -80,6 +108,137 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
             }
             settingsStore.theme.collect { t -> _state.update { s -> s.copy(theme = t) } }
         }
+    }
+
+    // ---------- account / sync ----------
+
+    fun setServerUrl(url: String) {
+        _state.update { it.copy(serverUrl = url) }
+        viewModelScope.launch { authStore.setServerUrl(url) }
+    }
+
+    fun register(email: String, password: String, displayName: String?) {
+        _state.update { it.copy(authBusy = true, authError = null) }
+        viewModelScope.launch {
+            when (val result = authApi.register(email, password, displayName)) {
+                is ApiResult.Success -> {
+                    val (token, user) = result.data
+                    authStore.saveSession(token, user)
+                    _state.update { it.copy(authBusy = false, authUser = user) }
+                    pushToServerIfLoggedIn()
+                }
+                is ApiResult.Failure -> _state.update { it.copy(authBusy = false, authError = result.error) }
+            }
+        }
+    }
+
+    fun login(email: String, password: String) {
+        _state.update { it.copy(authBusy = true, authError = null) }
+        viewModelScope.launch {
+            when (val result = authApi.login(email, password)) {
+                is ApiResult.Success -> {
+                    val (token, user) = result.data
+                    authStore.saveSession(token, user)
+                    _state.update { it.copy(authBusy = false, authUser = user) }
+                    pullFromServer()
+                }
+                is ApiResult.Failure -> _state.update { it.copy(authBusy = false, authError = result.error) }
+            }
+        }
+    }
+
+    fun logout() {
+        viewModelScope.launch {
+            authStore.clearSession()
+            _state.update { it.copy(authUser = null) }
+        }
+    }
+
+    fun discordLoginUrl(): String = "${_state.value.serverUrl}/auth/discord"
+
+    /** Called by MainActivity when the app is reopened via the personalcalendar://auth-callback deep link. */
+    fun handleDeepLinkToken(token: String) {
+        viewModelScope.launch {
+            val previousToken = authStore.currentToken()
+            authStore.saveSession(token, AuthUser(id = "", email = null, displayName = null, discordUsername = null))
+            when (val meResult = authApi.me()) {
+                is ApiResult.Success -> {
+                    authStore.saveSession(token, meResult.data)
+                    _state.update { it.copy(authUser = meResult.data) }
+                    pullFromServer()
+                }
+                is ApiResult.Failure -> {
+                    if (previousToken != null) authStore.saveSession(previousToken, _state.value.authUser ?: AuthUser("", null, null, null))
+                    else authStore.clearSession()
+                    _state.update { it.copy(authError = "discord_login_failed") }
+                }
+            }
+        }
+    }
+
+    private suspend fun pullFromServer() {
+        when (val result = authApi.pull()) {
+            is ApiResult.Success -> {
+                val (events, categories) = result.data
+                val localEvents = _state.value.events
+                val localCategories = _state.value.categories
+
+                if (events.isEmpty() && categories.isEmpty() && (localEvents.isNotEmpty() || localCategories.isNotEmpty())) {
+                    // Fresh account with nothing saved yet — seed it from local data instead of
+                    // wiping local with empty server data.
+                    authApi.push(localEvents, localCategories)
+                    return
+                }
+
+                repository.saveEvents(events)
+                if (categories.isNotEmpty()) repository.saveCategories(categories)
+                val finalCategories = if (categories.isNotEmpty()) categories else localCategories
+                _state.update {
+                    it.copy(
+                        events = events,
+                        categories = finalCategories,
+                        activeCategoryIds = finalCategories.map { c -> c.id }.toSet()
+                    )
+                }
+                events.forEach { ReminderScheduler.scheduleForEvent(getApplication(), it) }
+            }
+            is ApiResult.Failure -> { /* offline or unreachable; keep local data */ }
+        }
+    }
+
+    private fun pushToServerIfLoggedIn() {
+        if (_state.value.authUser == null) return
+        val events = _state.value.events
+        val categories = _state.value.categories
+        viewModelScope.launch { authApi.push(events, categories) }
+    }
+
+    // ---------- PIN lock ----------
+
+    private fun sha256(text: String): String {
+        val bytes = MessageDigest.getInstance("SHA-256").digest("pc-pin-salt:$text".toByteArray())
+        return bytes.joinToString("") { "%02x".format(it) }
+    }
+
+    fun setPin(pin: String) {
+        viewModelScope.launch {
+            authStore.setPinHash(sha256(pin))
+            _state.update { it.copy(hasPinSet = true) }
+        }
+    }
+
+    fun clearPin() {
+        viewModelScope.launch {
+            authStore.setPinHash(null)
+            _state.update { it.copy(hasPinSet = false) }
+        }
+    }
+
+    suspend fun checkPin(pin: String): Boolean {
+        val stored = authStore.pinHash.first()
+        val correct = stored != null && stored == sha256(pin)
+        if (correct) _state.update { it.copy(pinLocked = false) }
+        return correct
     }
 
     fun dismissUpdate() {
@@ -199,11 +358,13 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
     private fun persistEvents() {
         val snapshot = _state.value.events
         viewModelScope.launch { repository.saveEvents(snapshot) }
+        pushToServerIfLoggedIn()
     }
 
     private fun persistCategories() {
         val snapshot = _state.value.categories
         viewModelScope.launch { repository.saveCategories(snapshot) }
+        pushToServerIfLoggedIn()
     }
 
     fun openCategoryManager() {
