@@ -1,6 +1,6 @@
 {
   "name": "personal-calendar",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "개인 일정 관리 프로그램",
   "main": "src/main.js",
   "scripts": {
