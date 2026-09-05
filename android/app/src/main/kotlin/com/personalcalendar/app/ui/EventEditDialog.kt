@@ -117,7 +117,12 @@ fun EventEditDialog(
     var reminderMenuExpanded by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
 
-    Dialog(onDismissRequest = onDismiss) {
+    // Outside-tap dismiss is off on purpose: an accidental tap outside the form while
+    // typing shouldn't discard an in-progress add/edit. 취소/back button still work.
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false)
+    ) {
         Column(
             Modifier
                 .clip(RoundedCornerShape(16.dp))

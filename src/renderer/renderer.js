@@ -877,9 +877,8 @@
   });
 
   cancelBtn.addEventListener('click', closeModal);
-  modalOverlay.addEventListener('click', (ev) => {
-    if (ev.target === modalOverlay) closeModal();
-  });
+  // Deliberately no click-outside-to-close here: accidentally tapping outside the
+  // event form while typing shouldn't discard an in-progress add/edit. Use 취소/Esc.
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') {
       if (!modalOverlay.classList.contains('hidden')) closeModal();
